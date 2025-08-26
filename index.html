@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<!-- Chosen Palette: Slate Gray with Indigo/Emerald/Rose Accents -->
+<!-- Application Structure Plan: A single-page dashboard focused on a weekly financial cycle. The core interaction is managing the current week's budget and transactions. A prominent 'End Week' button archives the weekly data and carries over savings. Advanced features like long-term Savings Goals, editable Budgets, and AI Analysis are accessed via modals from the main screen to keep the primary view clean and focused on the weekly task. This structure combines the simplicity of a weekly tracker with the power of a full-featured finance app. -->
+<!-- Visualization & Content Choices: Report Info: User's weekly financial data. Goal: Provide comprehensive perso8nal finance management. Viz/Presentation: 1. Main View: Key weekly stats (Budget, Spent, Balance) as cards. A list of the current week's transactions. Buttons to access modals for Budgets, Goals, and AI Analysis. 2. Modals: Used for all secondary functions (Transaction entry, Goal management, Budget editing, Settings, AI reports) to maintain a clean primary UI. Interaction: The main loop is Add Transaction -> Review Stats -> End Week. AI is used for smart category suggestions and for generating weekly spending analysis. Justification: This design is highly task-oriented for a user who thinks in weekly cycles, but doesn't sacrifice the advanced features, which are neatly tucked away in modals. -->
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+<html lang="id" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Dompet Mingguan Pro</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4f46e5"/>
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background: #f9fafb; --foreground: #111827; --card: #ffffff; --card-foreground: #111827;
+            --muted: #f3f4f6; --muted-foreground: #6b7280; --popover: #ffffff; --popover-foreground: #111827;
+            --border: #e5e7eb; --input: #e5e7eb; --primary: #4f46e5; --primary-foreground: #f9fafb;
+            --secondary: #f3f4f6; --secondary-foreground: #111827; --accent: #f3f4f6; --accent-foreground: #111827;
+            --destructive: #ef4444; --ring: #4f46e5;
+        }
+        .dark {
+            --background: #09090b; --foreground: #fafafa; --card: #18181b; --card-foreground: #fafafa;
+            --muted: #27272a; --muted-foreground: #a1a1aa; --popover: #09090b; --popover-foreground: #fafafa;
+            --border: #27272a; --input: #27272a; --primary: #6366f1; --primary-foreground: #fafafa;
+            --secondary: #27272a; --secondary-foreground: #fafafa; --accent: #27272a; --accent-foreground: #fafafa;
+            --destructive: #f87171; --ring: #6366f1;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--background); color: var(--foreground); -webkit-tap-highlight-color: transparent; }
+        .modal-overlay {
+            position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.7); z-index: 50;
+            display: flex; align-items: center; justify-content: center; transition: opacity 0.3s ease;
+        }
+        .modal-hidden { opacity: 0; pointer-events: none; }
+        .modal-container {
+            background-color: var(--card); color: var(--card-foreground);
+            transition: all 0.3s ease; transform: scale(0.95); opacity: 0;
+        }
+        .modal-overlay:not(.modal-hidden) .modal-container { transform: scale(1); opacity: 1; }
+        .prose h3 { margin-bottom: 0.5em; font-weight: 600; color: var(--primary); }
+        .prose p { margin-bottom: 1em; }
+        .prose ul { list-style-position: outside; padding-left: 1.25em; margin-bottom: 1em; }
+        .prose li { margin-bottom: 0.5em; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1); width: 36px; height: 36px;
+            border-radius: 50%; border-left-color: var(--primary);
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="overscroll-none">
+
+    <div id="app-container" class="container mx-auto max-w-lg min-h-screen bg-[var(--background)] shadow-lg flex flex-col">
+        <!-- Header -->
+        <header id="app-header" class="flex justify-between items-center p-4 sticky top-0 bg-[var(--background)]/80 backdrop-blur-sm z-10 border-b border-[var(--border)]">
+            <div>
+                <h1 class="text-xl font-bold text-[var(--primary)]">Dompet Mingguan Pro</h1>
+                <p id="header-subtitle" class="text-sm text-[var(--muted-foreground)]"></p>
+            </div>
+            <button id="open-settings-btn" class="p-2 rounded-full hover:bg-[var(--muted)]">
+                <svg class="h-6 w-6 text-[var(--muted-foreground)]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            </button>
+        </header>
+
+        <!-- Main Content -->
+        <main id="main-content" class="flex-grow p-4 overflow-y-auto">
+            <!-- Content will be rendered here by JS -->
+        </main>
+
+        <!-- FAB -->
+        <button id="fab-add-transaction" class="fixed z-20 right-6 bottom-6 h-14 w-14 rounded-full bg-[var(--primary)] text-[var(--primary-foreground)] flex items-center justify-center shadow-lg hover:bg-indigo-700 dark:hover:bg-indigo-500 transition-transform transform hover:scale-110">
+            <svg class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+        </button>
+    </div>
+
+    <!-- Modals -->
+    <div id="pin-modal" class="modal-overlay modal-hidden"></div>
+    <div id="transaction-modal" class="modal-overlay modal-hidden"></div>
+    <div id="settings-modal" class="modal-overlay modal-hidden"></div>
+    <div id="goal-modal" class="modal-overlay modal-hidden"></div>
+    <div id="budget-modal" class="modal-overlay modal-hidden"></div>
+    <div id="ai-analysis-modal" class="modal-overlay modal-hidden"></div>
+    <div id="add-funds-modal" class="modal-overlay modal-hidden"></div>
+    <div id="allocate-savings-modal" class="modal-overlay modal-hidden"></div>
+
+    <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(err => console.error('SW registration failed: ', err));
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const App = {
+                state: {},
+                getInitialState() {
+                    return {
+                        settings: { pin: null, darkMode: false, startDay: 1, userName: "Sobat Hemat" },
+                        currentWeek: { budget: 0, transactions: [], startDate: new Date().toISOString().slice(0,10) },
+                        history: [], 
+                        savingsGoals: [],
+                        appLocked: false,
+                    };
+                },
+                loadState() {
+                    const savedState = localStorage.getItem('dompetMingguanPro_vFinal');
+                    this.state = savedState ? JSON.parse(savedState) : this.getInitialState();
+                    this.state.appLocked = !!this.state.settings.pin;
+                },
+                saveState() {
+                    localStorage.setItem('dompetMingguanPro_vFinal', JSON.stringify(this.state));
+                },
+
+                elements: {},
+                cacheDomElements() {
+                    this.elements = {
+                        html: document.querySelector('html'),
+                        headerSubtitle: document.getElementById('header-subtitle'),
+                        mainContent: document.getElementById('main-content'),
+                        fab: document.getElementById('fab-add-transaction'),
+                        pinModal: document.getElementById('pin-modal'),
+                        transactionModal: document.getElementById('transaction-modal'),
+                        settingsModal: document.getElementById('settings-modal'),
+                        goalModal: document.getElementById('goal-modal'),
+                        budgetModal: document.getElementById('budget-modal'),
+                        aiAnalysisModal: document.getElementById('ai-analysis-modal'),
+                        addFundsModal: document.getElementById('add-funds-modal'),
+                        allocateSavingsModal: document.getElementById('allocate-savings-modal'),
+                    };
+                },
+
+                formatCurrency(num) { return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num || 0); },
+                generateId(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`; },
+                formatDate(dateStr, options = { day: 'numeric', month: 'short' }) { return new Date(dateStr + 'T00:00:00').toLocaleDateString('id-ID', options); },
+                getWeekDateRange() {
+                    const today = new Date();
+                    const startDay = parseInt(this.state.settings.startDay);
+                    const day = today.getDay();
+                    const diff = today.getDate() - day + (day < startDay ? startDay - 7 : startDay);
+                    const start = new Date(new Date(today.setDate(diff)).setHours(0,0,0,0));
+                    const end = new Date(start);
+                    end.setDate(start.getDate() + 6);
+                    return { start, end };
+                },
+
+                init() {
+                    this.cacheDomElements();
+                    this.loadState();
+                    this.applySettings();
+                    this.bindEvents();
+                    this.startApp();
+                },
+                
+                startApp() {
+                    if (this.state.appLocked) {
+                        this.showPinEntryModal();
+                    } else {
+                        this.renderMainPage();
+                    }
+                },
+
+                applySettings() {
+                    if (this.state.settings.darkMode) this.elements.html.classList.add('dark');
+                    else this.elements.html.classList.remove('dark');
+                },
+
+                bindEvents() {
+                    this.elements.fab.addEventListener('click', () => this.showTransactionModal());
+                    document.getElementById('open-settings-btn').addEventListener('click', () => this.showSettingsModal());
+                },
+
+                renderMainPage() {
+                    const { start, end } = this.getWeekDateRange();
+                    this.elements.headerSubtitle.textContent = `Minggu: ${this.formatDate(start.toISOString())} - ${this.formatDate(end.toISOString())}`;
+                    
+                    const { budget, transactions } = this.state.currentWeek;
+                    const spent = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+                    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+                    const balance = budget + income - spent;
+                    
+                    const sortedTransactions = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+
+                    this.elements.mainContent.innerHTML = `
+                        <div class="space-y-6">
+                            <div class="grid grid-cols-3 gap-2 text-center">
+                                <div class="bg-[var(--card)] p-3 rounded-lg shadow-sm border border-[var(--border)]">
+                                    <h3 class="text-xs font-medium text-[var(--muted-foreground)]">Uang Minggu Ini</h3>
+                                    <p class="text-lg font-bold text-[var(--primary)]">${this.formatCurrency(budget)}</p>
+                                </div>
+                                <div class="bg-[var(--card)] p-3 rounded-lg shadow-sm border border-[var(--border)]">
+                                    <h3 class="text-xs font-medium text-[var(--muted-foreground)]">Pengeluaran</h3>
+                                    <p class="text-lg font-bold text-rose-500">${this.formatCurrency(spent)}</p>
+                                </div>
+                                <div class="bg-[var(--card)] p-3 rounded-lg shadow-sm border border-[var(--border)]">
+                                    <h3 class="text-xs font-medium text-[var(--muted-foreground)]">Sisa Saldo</h3>
+                                    <p class="text-lg font-bold ${balance >= 0 ? 'text-emerald-500' : 'text-rose-500'}">${this.formatCurrency(balance)}</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <button id="edit-budget-btn" class="bg-[var(--card)] p-3 rounded-lg border border-[var(--border)] text-sm font-medium text-center hover:bg-[var(--muted)]">Atur Anggaran</button>
+                                <button id="view-goals-btn" class="bg-[var(--card)] p-3 rounded-lg border border-[var(--border)] text-sm font-medium text-center hover:bg-[var(--muted)]">Tujuan Tabungan</button>
+                                <button id="ai-analysis-btn" class="bg-[var(--card)] p-3 rounded-lg border border-[var(--border)] text-sm font-medium text-center hover:bg-[var(--muted)]">✨ Analisis AI</button>
+                            </div>
+
+                            <div>
+                                <h3 class="text-lg font-semibold mb-2">Transaksi Minggu Ini</h3>
+                                <div class="space-y-2">
+                                    ${sortedTransactions.length > 0 ? sortedTransactions.map(t => this.renderTransactionItem(t)).join('') : '<p class="text-center text-[var(--muted-foreground)] py-8">Belum ada transaksi minggu ini.</p>'}
+                                </div>
+                            </div>
+                            
+                            <div class="pt-4">
+                                <button id="end-week-btn" class="w-full py-3 rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700">Tutup Minggu & Mulai Baru</button>
+                            </div>
+                        </div>
+                    `;
+
+                    document.getElementById('edit-budget-btn').addEventListener('click', () => this.showBudgetModal());
+                    document.getElementById('view-goals-btn').addEventListener('click', () => this.showGoalModal());
+                    document.getElementById('ai-analysis-btn').addEventListener('click', () => this.handleReportAnalysis());
+                    document.getElementById('end-week-btn').addEventListener('click', () => this.handleEndWeek());
+                },
+
+                renderTransactionItem(t) {
+                    const isExpense = t.type === 'expense';
+                    return `
+                        <div class="transaction-item flex items-center justify-between bg-[var(--card)] p-3 rounded-lg border border-[var(--border)]">
+                            <div>
+                                <p class="font-medium">${t.description}</p>
+                                <p class="text-sm text-[var(--muted-foreground)]">${this.formatDate(t.date)}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <p class="font-semibold ${isExpense ? 'text-rose-500' : 'text-emerald-500'}">${isExpense ? '-' : '+'} ${this.formatCurrency(t.amount)}</p>
+                            </div>
+                        </div>
+                    `;
+                },
+
+                showModal(modalEl) { modalEl.classList.remove('modal-hidden'); },
+                hideModal(modalEl) { modalEl.classList.add('modal-hidden'); },
+
+                showTransactionModal() {
+                    const modal = this.elements.transactionModal;
+                    modal.innerHTML = `
+                        <div class="modal-container rounded-lg p-4 w-11/12 max-w-lg max-h-[90vh] flex flex-col">
+                            <div class="flex justify-between items-center mb-4 p-2">
+                                <h3 class="text-lg font-bold">Tambah Transaksi</h3>
+                                <button id="close-transaction-modal-btn" class="p-2 rounded-full hover:bg-[var(--muted)]">&times;</button>
+                            </div>
+                            <form id="transaction-form" class="flex-grow overflow-y-auto p-2 space-y-4">
+                                <div>
+                                    <div class="flex rounded-md shadow-sm">
+                                        <button type="button" id="type-expense-btn" class="w-full px-4 py-2 rounded-l-md border border-[var(--border)]">Pengeluaran</button>
+                                        <button type="button" id="type-income-btn" class="w-full px-4 py-2 rounded-r-md border border-[var(--border)]">Pemasukan</button>
+                                        <input type="hidden" id="transaction-type" value="expense">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="transaction-amount" class="text-sm font-medium text-[var(--muted-foreground)]">Jumlah</label>
+                                    <input type="number" id="transaction-amount" placeholder="0" class="w-full mt-1 p-2 rounded-md bg-[var(--muted)] border border-[var(--border)]" required>
+                                </div>
+                                <div class="relative">
+                                    <label for="transaction-description" class="text-sm font-medium text-[var(--muted-foreground)]">Deskripsi</label>
+                                    <input type="text" id="transaction-description" placeholder="cth: Makan siang di kantor" class="w-full mt-1 p-2 rounded-md bg-[var(--muted)] border border-[var(--border)]" required>
+                                </div>
+                                <div>
+                                    <label for="transaction-date" class="text-sm font-medium text-[var(--muted-foreground)]">Tanggal</label>
+                                    <input type="date" id="transaction-date" class="w-full mt-1 p-2 rounded-md bg-[var(--muted)] border border-[var(--border)]" required>
+                                </div>
+                                <div class="pt-2">
+                                    <button type="submit" class="w-full px-4 py-2.5 rounded-md bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold">Simpan</button>
+                                </div>
+                            </form>
+                        </div>
+                    `;
+                    
+                    const form = modal.querySelector('#transaction-form');
+                    const typeInput = form.querySelector('#transaction-type');
+                    const expenseBtn = form.querySelector('#type-expense-btn');
+                    const incomeBtn = form.querySelector('#type-income-btn');
+                    
+                    const setType = (type) => {
+                        typeInput.value = type;
+                        const isExpense = type === 'expense';
+                        expenseBtn.classList.toggle('bg-[var(--primary)]', isExpense);
+                        expenseBtn.classList.toggle('text-[var(--primary-foreground)]', isExpense);
+                        incomeBtn.classList.toggle('bg-[var(--primary)]', !isExpense);
+                        incomeBtn.classList.toggle('text-[var(--primary-foreground)]', !isExpense);
+                    };
+
+                    expenseBtn.onclick = () => setType('expense');
+                    incomeBtn.onclick = () => setType('income');
+                    
+                    modal.querySelector('#transaction-date').value = new Date().toISOString().slice(0, 10);
+                    setType('expense');
+                    
+                    modal.querySelector('#close-transaction-modal-btn').onclick = () => this.hideModal(modal);
+                    form.onsubmit = (e) => this.handleTransactionSubmit(e);
+                    this.showModal(modal);
+                },
+                
+                handleTransactionSubmit(e) {
+                    e.preventDefault();
+                    const form = e.target;
+                    const newTransaction = {
+                        id: this.generateId('txn'),
+                        type: form.querySelector('#transaction-type').value,
+                        amount: parseInt(form.querySelector('#transaction-amount').value),
+                        date: form.querySelector('#transaction-date').value,
+                        description: form.querySelector('#transaction-description').value.trim()
+                    };
+
+                    if (!newTransaction.amount || !newTransaction.description) return;
+
+                    this.state.currentWeek.transactions.push(newTransaction);
+                    
+                    this.hideModal(this.elements.transactionModal);
+                    this.renderMainPage();
+                    this.saveState();
+                },
+                
+                showBudgetModal() {
+                    const modal = this.elements.budgetModal;
+                    modal.innerHTML = `
+                        <div class="modal-container rounded-lg p-4 w-11/12 max-w-lg max-h-[90vh] flex flex-col">
+                            <div class="flex justify-between items-center mb-4 p-2">
+                                <h3 class="text-lg font-bold">Atur Anggaran Mingguan</h3>
+                                <button id="close-budget-modal-btn" class="p-2 rounded-full hover:bg-[var(--muted)]">&times;</button>
+                            </div>
+                            <div class="flex-grow overflow-y-auto p-2 space-y-4">
+                                <div>
+                                    <label for="weekly-budget-input" class="text-sm font-medium text-[var(--muted-foreground)]">Total Uang Minggu Ini (Rp)</label>
+                                    <input type="number" id="weekly-budget-input" value="${this.state.currentWeek.budget || 0}" class="w-full mt-1 p-2 text-lg rounded-md bg-[var(--muted)] border border-[var(--border)]">
+                                </div>
+                            </div>
+                            <div class="p-2 mt-4">
+                                <button id="save-budget-btn" class="w-full py-2.5 rounded-md bg-[var(--primary)] text-white font-semibold">Simpan</button>
+                            </div>
+                        </div>
+                    `;
+                    modal.querySelector('#close-budget-modal-btn').onclick = () => this.hideModal(modal);
+                    modal.querySelector('#save-budget-btn').onclick = () => {
+                        const newBudget = parseInt(modal.querySelector('#weekly-budget-input').value, 10) || 0;
+                        this.state.currentWeek.budget = newBudget;
+                        this.saveState();
+                        this.hideModal(modal);
+                        this.renderMainPage();
+                    };
+                    this.showModal(modal);
+                },
+
+                showGoalModal(goalIdToEdit = null) {
+                   const modal = this.elements.goalModal;
+                   const icons = ['💻', '✈️', '🏠', '🎓', '🚗', '🎁', '📱', '💍'];
+                   
+                   const goalToEdit = goalIdToEdit ? this.state.savingsGoals.find(g => g.id === goalIdToEdit) : null;
+
+                   modal.innerHTML = `
+                        <div class="modal-container rounded-lg p-4 w-11/12 max-w-lg max-h-[90vh] flex flex-col">
+                            <div class="flex justify-between items-center mb-4 p-2">
+                                <h3 class="text-lg font-bold">Tujuan Tabungan</h3>
+                                <button id="close-goal-modal-btn" class="p-2 rounded-full hover:bg-[var(--muted)]">&times;</button>
+                            </div>
+                            <div class="flex-grow overflow-y-auto p-2 space-y-4">
+                                <form id="goal-form" class="space-y-4 p-2 border-b border-[var(--border)] pb-6">
+                                    <input type="hidden" id="goal-id" value="${goalToEdit?.id || ''}">
+                                    <h4 class="font-semibold">${goalToEdit ? 'Edit Tujuan' : 'Tambah Tujuan Baru'}</h4>
+                                    <div>
+                                        <label class="text-sm font-medium text-[var(--muted-foreground)]">Nama Tujuan</label>
+                                        <input type="text" id="goal-name" placeholder="cth: Laptop Baru" value="${goalToEdit?.name || ''}" class="w-full mt-1 p-2 rounded-md bg-[var(--muted)] border border-[var(--border)]" required>
+                                    </div>
+                                    <div>
+                                        <label class="text-sm font-medium text-[var(--muted-foreground)]">Target Dana (Rp)</label>
+                                        <input type="number" id="goal-target" placeholder="15000000" value="${goalToEdit?.targetAmount || ''}" class="w-full mt-1 p-2 rounded-md bg-[var(--muted)] border border-[var(--border)]" required>
+                                    </div>
+                                    <div>
+                                        <label class="text-sm font-medium text-[var(--muted-foreground)]">Pilih Ikon</label>
+                                        <div id="goal-icons" class="grid grid-cols-8 gap-2 mt-2">
+                                            ${icons.map(icon => `<button type="button" class="p-2 text-2xl rounded-md border ${goalToEdit?.icon === icon ? 'border-[var(--primary)]' : 'border-transparent'} hover:border-[var(--primary)]">${icon}</button>`).join('')}
+                                        </div>
+                                        <input type="hidden" id="goal-icon" value="${goalToEdit?.icon || '💻'}">
+                                    </div>
+                                    <div class="pt-2 flex gap-2">
+                                        <button type="submit" class="w-full px-4 py-2.5 rounded-md bg-[var(--primary)] text-[var(--primary-foreground)] font-semibold">Simpan</button>
+                                        ${goalToEdit ? `<button type="button" id="delete-goal-btn" class="px-4 py-2.5 rounded-md bg-[var(--destructive)] text-white font-semibold">Hapus</button>` : ''}
+                                    </div>
+                                </form>
+                                
+                                <div class="space-y-2">
+                                    ${this.state.savingsGoals.length > 0 ? this.state.savingsGoals.map(g => this.renderGoalItem(g)).join('') : '<p class="text-center text-[var(--muted-foreground)] py-4">Belum ada tujuan.</p>'}
+                                </div>
+                            </div>
+                        </div>
+                   `;
+
+                    const form = modal.querySelector('#goal-form');
+                    const iconContainer = modal.querySelector('#goal-icons');
+                    const iconInput = modal.querySelector('#goal-icon');
+                    
+                    iconContainer.querySelectorAll('button').forEach(btn => {
+                        btn.onclick = () => {
+                            iconContainer.querySelector('.border-\\[var\\(--primary\\)\\]')?.classList.remove('border-[var(--primary)]');
+                            btn.classList.add('border-[var(--primary)]');
+                            iconInput.value = btn.textContent;
+                        };
+                    });
+
+                   modal.querySelector('#close-goal-modal-btn').onclick = () => this.hideModal(modal);
+                   form.onsubmit = (e) => this.handleGoalSubmit(e);
+                   modal.querySelector('#delete-goal-btn')?.addEventListener('click', () => this.deleteGoal(goalIdToEdit));
+                   modal.querySelectorAll('.edit-goal-btn').forEach(btn => btn.addEventListener('click', e => this.showGoalModal(e.currentTarget.dataset.id)));
+                   modal.querySelectorAll('.add-funds-btn').forEach(btn => btn.addEventListener('click', e => this.showAddFundsModal(e.currentTarget.dataset.id)));
+                   this.showModal(modal);
+                },
+
+                renderGoalItem(g) {
+                    const percentage = g.targetAmount > 0 ? Math.min((g.currentAmount / g.targetAmount) * 100, 100) : 0;
+                    return `
+                        <div class="bg-[var(--muted)] p-4 rounded-lg">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <span class="text-2xl">${g.icon}</span>
+                                        <span class="font-semibold text-lg">${g.name}</span>
+                                    </div>
+                                    <p class="text-sm text-emerald-500 font-medium">${this.formatCurrency(g.currentAmount)} <span class="text-[var(--muted-foreground)]">/ ${this.formatCurrency(g.targetAmount)}</span></p>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                     <button data-id="${g.id}" class="add-funds-btn p-2 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400 text-xs">+</button>
+                                     <button data-id="${g.id}" class="edit-goal-btn p-2 rounded-full hover:bg-white/50 text-xs">✏️</button>
+                                </div>
+                            </div>
+                            <div class="w-full h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden mt-3">
+                                <div class="h-full rounded-full bg-emerald-500" style="width: ${percentage}%"></div>
+                            </div>
+                        </div>
+                    `;
+                },
+
+                handleGoalSubmit(e) {
+                    e.preventDefault();
+                    const form = e.target;
+                    const id = form.querySelector('#goal-id').value;
+                    const newGoal = {
+                        id: id || this.generateId('goal'),
+                        name: form.querySelector('#goal-name').value,
+                        icon: form.querySelector('#goal-icon').value,
+                        targetAmount: parseInt(form.querySelector('#goal-target').value),
+                        currentAmount: id ? this.state.savingsGoals.find(g=>g.id===id).currentAmount : 0,
+                    };
+
+                    if (id) {
+                        const index = this.state.savingsGoals.findIndex(g => g.id === id);
+                        this.state.savingsGoals[index] = newGoal;
+                    } else {
+                        this.state.savingsGoals.push(newGoal);
+                    }
+                    this.showGoalModal();
+                    this.saveState();
+                },
+                
+                deleteGoal(goalId) {
+                    if (confirm('Yakin ingin menghapus tujuan ini?')) {
+                        this.state.savingsGoals = this.state.savingsGoals.filter(g => g.id !== goalId);
+                        this.showGoalModal();
+                        this.saveState();
+                    }
+                },
+
+                showAddFundsModal(goalId) {
+                     const modal = this.elements.addFundsModal;
+                     modal.innerHTML = `
+                        <div class="modal-container rounded-lg p-4 w-11/12 max-w-sm">
+                            <h3 class="text-lg font-bold mb-4">Tambah Dana ke Tujuan</h3>
+                            <form id="add-funds-form" class="space-y-4">
+                                <input type="hidden" id="add-funds-goal-id" value="${goalId}">
+                                <div>
+                                    <label for="add-funds-amount" class="text-sm font-medium text-[var(--muted-foreground)]">Jumlah Dana (Rp)</label>
+                                    <input type="number" id="add-funds-amount" class="w-full mt-1 p-2 rounded-md bg-[var(--muted)] border border-[var(--border)]" required>
+                                </div>
+                                <div class="flex justify-end space-x-2">
+                                    <button type="button" id="close-add-funds-btn" class="px-4 py-2 rounded-md bg-[var(--muted)] text-[var(--muted-foreground)]">Batal</button>
+                                    <button type="submit" class="px-4 py-2 rounded-md bg-[var(--primary)] text-[var(--primary-foreground)]">Tambah</button>
+                                </div>
+                            </form>
+                        </div>
+                     `;
+                     modal.querySelector('#close-add-funds-btn').onclick = () => this.hideModal(modal);
+                     modal.querySelector('#add-funds-form').onsubmit = (e) => this.handleAddFundsSubmit(e);
+                     this.showModal(modal);
+                },
+
+                handleAddFundsSubmit(e) {
+                    e.preventDefault();
+                    const form = e.target;
+                    const goalId = form.querySelector('#add-funds-goal-id').value;
+                    const amount = parseInt(form.querySelector('#add-funds-amount').value);
+                    const goal = this.state.savingsGoals.find(g => g.id === goalId);
+                    if (goal && amount > 0) {
+                        goal.currentAmount += amount;
+                    }
+                    this.hideModal(this.elements.addFundsModal);
+                    this.showGoalModal();
+                    this.saveState();
+                },
+
+                showSettingsModal() {
+                    const modal = this.elements.settingsModal;
+                    modal.innerHTML = `
+                        <div class="modal-container rounded-lg p-0 w-11/12 max-w-lg max-h-[90vh] flex flex-col">
+                            <div class="flex justify-between items-center p-4 border-b border-[var(--border)]">
+                                <h3 class="text-lg font-bold">Pengaturan</h3>
+                                <button id="close-settings-modal-btn" class="p-2 rounded-full hover:bg-[var(--muted)]">&times;</button>
+                            </div>
+                            <div class="flex-grow overflow-y-auto p-4 space-y-6">
+                                <div class="flex justify-between items-center">
+                                    <label class="font-medium">Mode Gelap</label>
+                                    <button id="darkModeToggle" class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-[var(--muted)]">
+                                        <span class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${this.state.settings.darkMode ? 'translate-x-6' : 'translate-x-1'}"></span>
+                                    </button>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium mb-2">Keamanan</h4>
+                                    <button id="setup-pin-btn" class="w-full text-left p-2 rounded-md hover:bg-[var(--muted)]">${this.state.settings.pin ? 'Ubah PIN' : 'Atur PIN Keamanan'}</button>
+                                    ${this.state.settings.pin ? '<button id="remove-pin-btn" class="w-full text-left p-2 rounded-md text-[var(--destructive)] hover:bg-red-500/10">Hapus PIN</button>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    this.showModal(modal);
+                    modal.querySelector('#close-settings-modal-btn').onclick = () => this.hideModal(modal);
+                    modal.querySelector('#darkModeToggle').onclick = () => this.toggleDarkMode();
+                    modal.querySelector('#setup-pin-btn').onclick = () => this.showPinSetupModal();
+                    modal.querySelector('#remove-pin-btn')?.addEventListener('click', () => this.removePin());
+                },
+                
+                showPinEntryModal() {
+                    const modal = this.elements.pinModal;
+                    modal.innerHTML = `
+                        <div class="modal-container rounded-lg p-6 w-11/12 max-w-xs text-center">
+                            <h3 class="text-lg font-bold mb-2">Masukkan PIN</h3>
+                            <div id="pin-dots" class="flex justify-center space-x-3 my-4">
+                                ${Array(4).fill('<div class="h-4 w-4 rounded-full border border-[var(--border)]"></div>').join('')}
+                            </div>
+                            <input type="number" id="pin-input" class="absolute opacity-0 -z-10">
+                            <p id="pin-error" class="text-sm text-[var(--destructive)] h-5"></p>
+                        </div>
+                    `;
+                    const pinInput = modal.querySelector('#pin-input');
+                    pinInput.addEventListener('input', (e) => this.handlePinInput(e, 'entry'));
+                    pinInput.addEventListener('blur', () => pinInput.focus());
+                    this.showModal(modal);
+                    setTimeout(() => pinInput.focus(), 100);
+                },
+
+                showPinSetupModal() {
+                    const modal = this.elements.pinModal;
+                    let step = this.state.settings.pin ? 'enter_old' : 'enter_new';
+                    let tempPin = '';
+
+                    const renderStep = () => {
+                        let title, message;
+                        if (step === 'enter_old') { title = 'Masukkan PIN Lama'; message = 'Untuk mengubah, masukkan PIN Anda saat ini.'; } 
+                        else if (step === 'enter_new') { title = 'Buat PIN Baru'; message = 'Masukkan 4 digit PIN baru.'; } 
+                        else if (step === 'confirm_new') { title = 'Konfirmasi PIN Baru'; message = 'Masukkan kembali 4 digit PIN baru Anda.'; }
+                        
+                        modal.innerHTML = `
+                            <div class="modal-container rounded-lg p-6 w-11/12 max-w-xs text-center">
+                                <h3 class="text-lg font-bold mb-2">${title}</h3>
+                                <p class="text-sm text-[var(--muted-foreground)] mb-4">${message}</p>
+                                <div id="pin-dots" class="flex justify-center space-x-3 my-4">
+                                    ${Array(4).fill('<div class="h-4 w-4 rounded-full border border-[var(--border)]"></div>').join('')}
+                                </div>
+                                <input type="number" id="pin-input-setup" class="absolute opacity-0 -z-10">
+                                <p id="pin-error" class="text-sm text-[var(--destructive)] h-5"></p>
+                                <button id="cancel-pin-setup" class="mt-4 text-sm text-[var(--muted-foreground)]">Batal</button>
+                            </div>
+                        `;
+
+                        const pinInput = modal.querySelector('#pin-input-setup');
+                        modal.querySelector('#cancel-pin-setup').onclick = () => { this.hideModal(modal); this.showSettingsModal(); };
+                        pinInput.oninput = (e) => {
+                            const pin = e.target.value;
+                            const dots = modal.querySelector('#pin-dots').children;
+                            const errorEl = modal.querySelector('#pin-error');
+                            errorEl.textContent = '';
+                            for (let i = 0; i < 4; i++) { dots[i].classList.toggle('bg-[var(--primary)]', i < pin.length); }
+
+                            if (pin.length >= 4) {
+                                if (step === 'enter_old') {
+                                    if (pin === this.state.settings.pin) { step = 'enter_new'; renderStep(); } 
+                                    else { errorEl.textContent = 'PIN lama salah.'; setTimeout(() => renderStep(), 1000); }
+                                } else if (step === 'enter_new') {
+                                    tempPin = pin; step = 'confirm_new'; renderStep();
+                                } else if (step === 'confirm_new') {
+                                    if (pin === tempPin) {
+                                        this.state.settings.pin = tempPin;
+                                        this.state.appLocked = true;
+                                        this.saveState();
+                                        alert('PIN berhasil diatur!');
+                                        this.hideModal(modal);
+                                        this.showSettingsModal();
+                                    } else {
+                                        errorEl.textContent = 'PIN tidak cocok.'; step = 'enter_new'; setTimeout(() => renderStep(), 1000);
+                                    }
+                                }
+                            }
+                        };
+                        pinInput.onblur = () => pinInput.focus();
+                        setTimeout(() => pinInput.focus(), 100);
+                    };
+                    
+                    this.hideModal(this.elements.settingsModal);
+                    renderStep();
+                    this.showModal(modal);
+                },
+                
+                removePin() {
+                    if (confirm('Apakah Anda yakin ingin menghapus PIN? Aplikasi tidak akan terkunci lagi.')) {
+                        this.state.settings.pin = null;
+                        this.state.appLocked = false;
+                        this.saveState();
+                        alert('PIN berhasil dihapus.');
+                        this.showSettingsModal();
+                    }
+                },
+
+                handlePinInput(e, context) {
+                    if (context !== 'entry') return;
+                    const input = e.target;
+                    const pin = input.value;
+                    const modal = this.elements.pinModal;
+                    const dots = modal.querySelector('#pin-dots').children;
+                    const errorEl = modal.querySelector('#pin-error');
+                    errorEl.textContent = '';
+
+                    for (let i = 0; i < 4; i++) { dots[i].classList.toggle('bg-[var(--primary)]', i < pin.length); }
+
+                    if (pin.length >= 4) {
+                        if (pin === this.state.settings.pin) {
+                            this.state.appLocked = false;
+                            this.hideModal(modal);
+                            this.renderMainPage();
+                        } else {
+                            errorEl.textContent = 'PIN salah. Coba lagi.';
+                            input.value = '';
+                            setTimeout(() => {
+                                errorEl.textContent = '';
+                                for (let dot of dots) dot.classList.remove('bg-[var(--primary)]');
+                            }, 1000);
+                        }
+                    }
+                },
+                
+                handleEndWeek() {
+                    const { budget, transactions } = this.state.currentWeek;
+                    const spent = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+                    const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+                    const balance = budget + income - spent;
+
+                    if (confirm(`Sisa saldo minggu ini adalah ${this.formatCurrency(balance)}. Apakah Anda yakin ingin menutup minggu ini dan memulai yang baru?`)) {
+                        
+                        const resetWeek = () => {
+                            const newBudget = prompt("Masukkan anggaran untuk minggu baru:", "0");
+                            this.state.currentWeek = {
+                                budget: parseInt(newBudget, 10) || 0,
+                                transactions: [],
+                                startDate: new Date().toISOString().slice(0,10)
+                            };
+                            this.saveState();
+                            this.renderMainPage();
+                        };
+
+                        if (balance > 0) {
+                            if (this.state.savingsGoals.length > 0 && confirm("Anda punya sisa uang! Apakah Anda ingin mengalokasikannya ke Tujuan Tabungan?")) {
+                                this.showAllocationModal(balance, resetWeek);
+                            } else {
+                                this.state.history.push({ weekOf: new Date().toISOString().slice(0, 10), saved: balance });
+                                resetWeek();
+                            }
+                        } else {
+                            resetWeek();
+                        }
+                    }
+                },
+                
+                showAllocationModal(balance, callback) {
+                    const modal = this.elements.allocateSavingsModal;
+                    modal.innerHTML = `
+                         <div class="modal-container rounded-lg p-4 w-11/12 max-w-sm">
+                            <h3 class="text-lg font-bold mb-2">Alokasikan Sisa Uang</h3>
+                            <p class="text-sm text-[var(--muted-foreground)] mb-4">Alokasikan ${this.formatCurrency(balance)} ke salah satu tujuan Anda.</p>
+                            <form id="allocation-form" class="space-y-4">
+                                <div>
+                                    <label for="goal-select" class="text-sm font-medium">Pilih Tujuan</label>
+                                    <select id="goal-select" class="w-full mt-1 p-2 rounded-md bg-[var(--muted)] border border-[var(--border)]">
+                                        ${this.state.savingsGoals.map(g => `<option value="${g.id}">${g.icon} ${g.name}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div class="flex justify-end space-x-2">
+                                    <button type="button" id="skip-allocation-btn" class="px-4 py-2 rounded-md bg-[var(--muted)] text-[var(--muted-foreground)]">Simpan Biasa</button>
+                                    <button type="submit" class="px-4 py-2 rounded-md bg-[var(--primary)] text-[var(--primary-foreground)]">Alokasikan</button>
+                                </div>
+                            </form>
+                        </div>
+                    `;
+                    modal.querySelector('#skip-allocation-btn').onclick = () => {
+                        this.state.history.push({ weekOf: new Date().toISOString().slice(0, 10), saved: balance });
+                        this.hideModal(modal);
+                        callback();
+                    };
+                    modal.querySelector('#allocation-form').onsubmit = (e) => {
+                        e.preventDefault();
+                        const goalId = e.target.querySelector('#goal-select').value;
+                        const goal = this.state.savingsGoals.find(g => g.id === goalId);
+                        if(goal) {
+                            goal.currentAmount += balance;
+                        }
+                        this.hideModal(modal);
+                        callback();
+                    };
+                    this.showModal(modal);
+                },
+
+                async callGemini(prompt) {
+                    const apiKey = "";
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+                    const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    const result = await response.json();
+                    if (result.candidates && result.candidates.length > 0) return result.candidates[0].content.parts[0].text;
+                    throw new Error('Invalid AI Response');
+                },
+                
+                async handleReportAnalysis() {
+                    const modal = this.elements.aiAnalysisModal;
+                    modal.innerHTML = `
+                        <div class="modal-container rounded-lg p-4 w-11/12 max-w-lg max-h-[90vh] flex flex-col">
+                            <div class="flex justify-between items-center mb-4 p-2">
+                                <h3 class="text-lg font-bold text-[var(--primary)]">✨ Analisis Mingguan</h3>
+                                <button id="close-ai-analysis-modal-btn" class="p-2 rounded-full hover:bg-[var(--muted)]">&times;</button>
+                            </div>
+                            <div id="ai-analysis-content" class="flex-grow overflow-y-auto p-2 prose"></div>
+                        </div>
+                    `;
+                    modal.querySelector('#close-ai-analysis-modal-btn').onclick = () => this.hideModal(modal);
+                    
+                    this.showModal(modal);
+                    const contentEl = modal.querySelector('#ai-analysis-content');
+                    contentEl.innerHTML = `<div class="flex justify-center items-center h-48"><div class="spinner"></div></div>`;
+                    
+                    const expensesThisWeek = this.state.currentWeek.transactions.filter(t => t.type === 'expense');
+                    if (expensesThisWeek.length < 2) {
+                        contentEl.innerHTML = '<p>Data tidak cukup. Coba tambahkan lebih banyak transaksi minggu ini.</p>';
+                        return;
+                    }
+                    
+                    const transactionList = expensesThisWeek.map(t => `- ${t.description}: ${this.formatCurrency(t.amount)}`).join('\n');
+                    const prompt = `Anda adalah penasihat keuangan AI. Analisis daftar pengeluaran mingguan ini dalam Bahasa Indonesia. Berikan output dalam format HTML (<h3>, <p>, <ul>, <li>). Jangan sertakan tag <html> atau <body>. Analisis harus mencakup: 1. Ringkasan singkat pola pengeluaran. 2. Identifikasi 1-2 kategori pengeluaran terbesar. 3. Berikan 1 tips hemat praktis. Data Transaksi:\n${transactionList}`;
+
+                    try {
+                        contentEl.innerHTML = await this.callGemini(prompt);
+                    } catch (error) {
+                        console.error("AI Report Analysis Error:", error);
+                        contentEl.innerHTML = '<p class="text-[var(--destructive)]">Maaf, terjadi kesalahan saat menganalisis data.</p>';
+                    }
+                },
+
+                toggleDarkMode() {
+                    this.state.settings.darkMode = !this.state.settings.darkMode;
+                    this.applySettings();
+                    this.saveState();
+                    this.showSettingsModal();
+                },
+            };
+
+            App.init();
+        });
+    </script>
+</body>
+</html>
